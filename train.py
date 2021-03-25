@@ -50,14 +50,21 @@ random.shuffle(examples)
 val_examples = [example for example in examples if example[2][0] < 29898]
 train_examples = [example for example in examples if example[2][0] > 29898]
 
+zero_mask = numpy.zeros((MaskSize, MaskSize), dtype='uint8')
+for fname in os.listdir('images_negative/'):
+	im = skimage.io.imread('images_negative/'+fname)
+	train_examples.append((im, zero_mask))
+
 def prepare(example):
-	big_im = example[0]
-	big_mask = example[1]
-	x = random.randint(MaskSize-MaskSize//4, MaskSize+MaskSize//4)
-	y = random.randint(MaskSize-MaskSize//4, MaskSize+MaskSize//4)
-	factor = Size//MaskSize
-	im = big_im[y*factor:y*factor+Size, x*factor:x*factor+Size, :]
-	mask = big_mask[y:y+MaskSize, x:x+MaskSize]
+	im = example[0]
+	mask = example[1]
+
+	if im.shape[0] > Size:
+		x = random.randint(MaskSize-MaskSize//4, MaskSize+MaskSize//4)
+		y = random.randint(MaskSize-MaskSize//4, MaskSize+MaskSize//4)
+		factor = Size//MaskSize
+		im = im[y*factor:y*factor+Size, x*factor:x*factor+Size, :]
+		mask = mask[y:y+MaskSize, x:x+MaskSize]
 
 	# random rotation
 	rotations = random.randint(0, 3)
@@ -79,7 +86,7 @@ for epoch in range(9999):
 	start_time = time.time()
 	train_losses = []
 	for i in range(256):
-		batch = [prepare(example) for example in random.sample(examples, batch_size)]
+		batch = [prepare(example) for example in random.sample(train_examples, batch_size)]
 		_, loss = session.run([m.optimizer, m.loss], feed_dict={
 			m.inputs: [example[0] for example in batch],
 			m.targets: [example[1] for example in batch],
@@ -140,4 +147,4 @@ def apply():
 			cur_output *= 255
 			cur_output = skimage.transform.resize(cur_output, [2048, 2048], order=0, preserve_range=True)
 			output[y:y+2048, x:x+2048] = cur_output.astype('uint8')
-	skimage.io.imsave('out.png', cur_output)
+	skimage.io.imsave('out.png', output)
